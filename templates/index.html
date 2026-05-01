@@ -2,30 +2,53 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>AgroVision AI - Dashboard</title>
+    <title>AgroVision AI - Live Dashboard</title>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; margin: 20px; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
-        h1 { color: #1a73e8; }
-        .event-card { border-bottom: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-        img { max-width: 300px; border-radius: 5px; }
+        body { font-family: 'Segoe UI', sans-serif; background: #eef2f7; margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .monitor-layout { display: flex; gap: 20px; margin-top: 20px; }
+        .video-container { flex: 2; background: #000; border-radius: 10px; border: 4px solid #333; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        #stream { width: 100%; display: block; }
+        .events-panel { flex: 1; height: 500px; overflow-y: auto; background: #f9f9f9; padding: 15px; border-radius: 10px; }
+        .card { background: white; padding: 12px; margin-bottom: 12px; border-radius: 8px; border-left: 5px solid #28a745; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .card img { width: 100%; border-radius: 5px; margin-top: 8px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>AgroVision AI 🚜</h1>
-        <p>Monitoramento em tempo real com YOLOv8</p>
-        <hr>
-        <h2>Últimos Eventos Detectados</h2>
-        {% for event in events %}
-            <div class="event-card">
-                <p><strong>Horário:</strong> {{ event.event_time }}</p>
-                <p><strong>Objeto:</strong> {{ event.label }} ({{ "%.2f"|format(event.confidence) }})</p>
-                <img src="{{ event.image_path }}" alt="Detecção">
+        <h1>AgroVision AI 🚜 Monitorização em Direto</h1>
+        <div class="monitor-layout">
+            <div class="video-container">
+                <img id="stream" src="/video_feed" alt="A ligar à câmara...">
             </div>
-        {% else %}
-            <p>Nenhum evento registrado ainda. Aguardando detecções...</p>
-        {% endfor %}
+            <div class="events-panel">
+                <h3>Alertas Recentes</h3>
+                {% for event in events %}
+                <div class="card">
+                    <strong>{{ event.label.upper() }}</strong>
+                    <p style="font-size: 0.8em; color: #777;">{{ event.event_time }}</p>
+                    <img src="{{ event.image_path }}">
+                </div>
+                {% else %}
+                <p>À espera de detecções...</p>
+                {% endfor %}
+            </div>
+        </div>
     </div>
+    <script>
+        // ATUALIZAÇÃO INTELIGENTE: Em vez de recarregar a página inteira e "matar" o vídeo,
+        // este script busca os novos alertas em segundo plano e atualiza só a barra lateral.
+        setInterval(() => {
+            fetch('/')
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newPanel = doc.querySelector('.events-panel').innerHTML;
+                    document.querySelector('.events-panel').innerHTML = newPanel;
+                })
+                .catch(err => console.error("Erro ao atualizar os alertas: ", err));
+        }, 5000);
+    </script>
 </body>
 </html>

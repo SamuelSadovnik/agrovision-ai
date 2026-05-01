@@ -14,3 +14,6 @@ __pycache__/
 
 # Pesos do YOLO (opcional ignorar, mas recomendado para não pesar o repo)
 *.pt
+
+static/captures/*
+!static/captures/.gitkeep
