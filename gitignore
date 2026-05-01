@@ -1,0 +1,16 @@
+# Ambientes Virtuais
+.venv/
+venv/
+env/
+
+# Banco de dados e imagens locais
+detections.db
+static/captures/*
+!static/captures/.gitkeep
+
+# Arquivos temporários do Python
+__pycache__/
+*.pyc
+
+# Pesos do YOLO (opcional ignorar, mas recomendado para não pesar o repo)
+*.pt

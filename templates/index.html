@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>AgroVision AI - Dashboard</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; margin: 20px; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
+        h1 { color: #1a73e8; }
+        .event-card { border-bottom: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
+        img { max-width: 300px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AgroVision AI 🚜</h1>
+        <p>Monitoramento em tempo real com YOLOv8</p>
+        <hr>
+        <h2>Últimos Eventos Detectados</h2>
+        {% for event in events %}
+            <div class="event-card">
+                <p><strong>Horário:</strong> {{ event.event_time }}</p>
+                <p><strong>Objeto:</strong> {{ event.label }} ({{ "%.2f"|format(event.confidence) }})</p>
+                <img src="{{ event.image_path }}" alt="Detecção">
+            </div>
+        {% else %}
+            <p>Nenhum evento registrado ainda. Aguardando detecções...</p>
+        {% endfor %}
+    </div>
+</body>
+</html>
