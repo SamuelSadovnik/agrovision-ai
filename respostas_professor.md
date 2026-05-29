@@ -1,4 +1,4 @@
-# Respostas para o professor
+Respostas
 
 Parte 1 — Revisão da Arquitetura
 
