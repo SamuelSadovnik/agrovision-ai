@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <title>AgroVision Chat</title>
+    <style>
+        body{font-family: Arial, sans-serif; padding:20px;}
+        .chat{max-width:800px;margin:auto}
+        .messages{border:1px solid #ddd;padding:10px;height:400px;overflow:auto;background:#fafafa}
+        .msg{margin:8px 0}
+        .msg.user{color: #0b63d6}
+        .msg.bot{color: #222}
+        .controls{display:flex;gap:8px;margin-top:8px}
+        input[type=text]{flex:1;padding:8px}
+        button{padding:8px 12px}
+        .meta{font-size:0.9em;color:#666;margin-bottom:8px}
+    </style>
+</head>
+<body>
+    <div class="chat">
+        <h2>Chat LLaMA — AgroVision</h2>
+        <div class="meta">Provider: <span id="provider">carregando...</span></div>
+        <div class="messages" id="messages"></div>
+        <div class="controls">
+            <input id="message" type="text" placeholder="Escreve a pergunta...">
+            <input id="event_id" type="text" placeholder="event_id (opcional)" style="width:220px">
+            <button id="send">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+    async function getProvider(){
+        try{
+            const r = await fetch('/api/chat/provider');
+            const j = await r.json();
+            document.getElementById('provider').innerText = j.provider || 'none';
+        }catch(e){document.getElementById('provider').innerText = 'erro'}
+    }
+    function addMsg(text, who){
+        const el = document.createElement('div');
+        el.className = 'msg ' + who;
+        el.innerText = text;
+        document.getElementById('messages').appendChild(el);
+        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+    document.getElementById('send').addEventListener('click', async ()=>{
+        const msg = document.getElementById('message').value.trim();
+        const event_id = document.getElementById('event_id').value.trim() || null;
+        if(!msg) return;
+        addMsg(msg, 'user');
+        document.getElementById('message').value = '';
+        addMsg('...', 'bot');
+        try{
+            const resp = await fetch('/api/chat', {method:'POST',headers:{'Content-Type':'application/json'},body: JSON.stringify({message: msg, event_id})});
+            const j = await resp.json();
+            // replace last '...' with actual
+            const msgs = document.getElementById('messages').getElementsByClassName('msg');
+            if(msgs.length) msgs[msgs.length-1].innerText = j.text || (j.error || JSON.stringify(j));
+        }catch(e){
+            const msgs = document.getElementById('messages').getElementsByClassName('msg');
+            if(msgs.length) msgs[msgs.length-1].innerText = 'Erro: ' + e;
+        }
+    });
+    getProvider();
+    </script>
+</body>
+</html>

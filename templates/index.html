@@ -9,9 +9,15 @@
         .monitor-layout { display: flex; gap: 20px; margin-top: 20px; }
         .video-container { flex: 2; background: #000; border-radius: 10px; border: 4px solid #333; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         #stream { width: 100%; display: block; }
-        .events-panel { flex: 1; height: 500px; overflow-y: auto; background: #f9f9f9; padding: 15px; border-radius: 10px; }
+        .events-panel { flex: 1; height: 500px; background: #f9f9f9; padding: 15px; border-radius: 10px; display:flex; flex-direction:column; }
+        .events-list { overflow-y: auto; margin-top: 8px; }
         .card { background: white; padding: 12px; margin-bottom: 12px; border-radius: 8px; border-left: 5px solid #28a745; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .card img { width: 100%; border-radius: 5px; margin-top: 8px; }
+        /* Chat styles */
+        .messages{border:1px solid #ddd;padding:10px;height:180px;overflow:auto;background:#fafafa}
+        .msg{margin:8px 0}
+        .msg.user{color: #0b63d6}
+        .msg.bot{color: #222}
     </style>
 </head>
 <body>
@@ -22,11 +28,25 @@
                 <img id="stream" src="/video_feed" alt="A ligar à câmara...">
             </div>
             <div class="events-panel">
+                <!-- Chat integrado: colocado no topo para ficar sempre visível -->
+                <h3>Chat LLaMA</h3>
+                <div class="chat-panel" style="margin-bottom:12px;">
+                    <div class="meta">Provider: <span id="provider">carregando...</span></div>
+                    <div class="messages" id="messages" style="height:140px; border:1px solid #e6e6e6; padding:8px; overflow:auto; background:#fff;"></div>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <input id="message" type="text" placeholder="Escreve a pergunta..." style="flex:1; padding:8px">
+                        <input id="event_id" type="text" placeholder="event_id (opcional)" style="width:160px; padding:8px">
+                        <button id="send" style="padding:8px 12px">Enviar</button>
+                    </div>
+                </div>
+
                 <h3>Alertas Recentes</h3>
+                <div class="events-list">
                 {% for event in events %}
                 <div class="card">
                     <strong>{{ event.label.upper() }}</strong>
-                    <p style="font-size: 0.8em; color: #777;">{{ event.event_time }}</p>
+                    <p style="font-size: 0.8em; color: #777;">{{ event.event_time }} — <em style="font-size:0.8em">id: <span class="event-id">{{ event.id }}</span></em></p>
+                    <div style="margin-top:6px;"><button onclick="copyEventId('{{ event.id }}')" style="font-size:0.8em;padding:6px 8px;">Copiar event_id</button></div>
                     <img src="{{ event.image_path }}">
                     {% if event.weather %}
                     <div style="font-size:0.85em; color:#444; margin-top:6px;">
@@ -43,23 +63,71 @@
                 {% else %}
                 <p>À espera de detecções...</p>
                 {% endfor %}
+                </div>
+
+                <!-- (duplicated chat removed) -->
             </div>
         </div>
     </div>
     <script>
-        // ATUALIZAÇÃO INTELIGENTE: Em vez de recarregar a página inteira e "matar" o vídeo,
-        // este script busca os novos alertas em segundo plano e atualiza só a barra lateral.
+        // Atualiza só a lista de eventos (não toca no chat integrado)
         setInterval(() => {
             fetch('/')
                 .then(response => response.text())
                 .then(html => {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(html, 'text/html');
-                    const newPanel = doc.querySelector('.events-panel').innerHTML;
-                    document.querySelector('.events-panel').innerHTML = newPanel;
+                    const newList = doc.querySelector('.events-list');
+                    if(newList){
+                        document.querySelector('.events-list').innerHTML = newList.innerHTML;
+                    }
                 })
                 .catch(err => console.error("Erro ao atualizar os alertas: ", err));
         }, 5000);
+
+        // --- Chat JS integrado ---
+        async function getProvider(){
+            try{
+                const r = await fetch('/api/chat/provider');
+                const j = await r.json();
+                document.getElementById('provider').innerText = j.provider || 'none';
+            }catch(e){document.getElementById('provider').innerText = 'erro'}
+        }
+        function addMsg(text, who){
+            const el = document.createElement('div');
+            el.className = 'msg ' + who;
+            el.innerText = text;
+            document.getElementById('messages').appendChild(el);
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        }
+
+        function copyEventId(id){
+            try{
+                document.getElementById('event_id').value = id;
+                document.getElementById('message').focus();
+                addMsg('event_id copiado: ' + id, 'bot');
+            }catch(e){
+                console.error('copyEventId error', e);
+            }
+        }
+        document.getElementById('send').addEventListener('click', async ()=>{
+            const msg = document.getElementById('message').value.trim();
+            const event_id = document.getElementById('event_id').value.trim() || null;
+            if(!msg) return;
+            addMsg(msg, 'user');
+            document.getElementById('message').value = '';
+            addMsg('...', 'bot');
+            try{
+                const resp = await fetch('/api/chat', {method:'POST',headers:{'Content-Type':'application/json'},body: JSON.stringify({message: msg, event_id})});
+                const j = await resp.json();
+                const msgs = document.getElementById('messages').getElementsByClassName('msg');
+                if(msgs.length) msgs[msgs.length-1].innerText = j.text || (j.error || JSON.stringify(j));
+            }catch(e){
+                const msgs = document.getElementById('messages').getElementsByClassName('msg');
+                if(msgs.length) msgs[msgs.length-1].innerText = 'Erro: ' + e;
+            }
+        });
+        getProvider();
     </script>
 </body>
 </html>

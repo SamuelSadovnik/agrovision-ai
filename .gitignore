@@ -2,3 +2,5 @@
 static/captures/
 *.jpg
 models/
+detections.db
+__pycache__/
