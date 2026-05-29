@@ -46,7 +46,14 @@ def respond_to_message(message: str, event: Optional[Dict[str, Any]] = None) -> 
             model_path = None
 
     if not model_path:
-        return {"error": "no_llama_model_found", "details": "Place a ggml model in ./models/ or set LLAMA_MODEL_PATH", "provider": "llama"}
+        # No model found — fall back to demo responder so chat remains usable locally
+        try:
+            demo = _demo_respond(message, event)
+            demo['provider'] = demo.get('provider', 'ggml-demo')
+            demo['fallback_from'] = 'no_model_found'
+            return demo
+        except Exception:
+            return {"error": "no_llama_model_found", "details": "Place a ggml model in ./models/ or set LLAMA_MODEL_PATH", "provider": "llama"}
 
     try:
         from llama_cpp import Llama
