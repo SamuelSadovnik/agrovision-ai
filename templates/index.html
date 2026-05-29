@@ -28,6 +28,17 @@
                     <strong>{{ event.label.upper() }}</strong>
                     <p style="font-size: 0.8em; color: #777;">{{ event.event_time }}</p>
                     <img src="{{ event.image_path }}">
+                    {% if event.weather %}
+                    <div style="font-size:0.85em; color:#444; margin-top:6px;">
+                        <strong>Clima:</strong>
+                        {% if event.weather.current and event.weather.current.temperature is defined %}
+                        {{ event.weather.current.temperature }} °C — 
+                        {% endif %}
+                        {% if event.weather.current and event.weather.current.windspeed is defined %}
+                        vento {{ event.weather.current.windspeed }} m/s
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
                 {% else %}
                 <p>À espera de detecções...</p>

@@ -5,6 +5,7 @@ import uuid
 import sqlite3
 import threading
 from datetime import datetime
+import json
 from collections import defaultdict
 
 from fastapi import FastAPI, Request
@@ -12,6 +13,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from ultralytics import YOLO
+from services.scraper import fetch_weather
 
 # =========================
 # CONFIGURAÇÕES (Hardcoded para facilitar)
@@ -21,6 +23,8 @@ MODEL_PATH = "yolov8n.pt"
 CONFIDENCE_THRESHOLD = 0.45
 SAVE_DIR = "static/captures"
 DB_PATH = "detections.db"
+DEFAULT_LAT = -23.55
+DEFAULT_LON = -46.63
 
 TARGET_CLASSES = {"person", "car", "motorcycle", "truck", "bus"}
 MIN_CONSECUTIVE_FRAMES = 3
@@ -57,27 +61,42 @@ def init_db():
             event_time TEXT,
             label TEXT,
             confidence REAL,
-            image_path TEXT
+            image_path TEXT,
+            weather TEXT
         )
     """)
+    # If DB existed without `weather`, try to add column (ignore if exists)
+    try:
+        cur.execute("ALTER TABLE events ADD COLUMN weather TEXT")
+    except Exception:
+        pass
     conn.commit()
     conn.close()
 
-def save_event(event_id: str, label: str, confidence: float, image_path: str):
+def save_event(event_id: str, label: str, confidence: float, image_path: str, weather: str = None):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("INSERT INTO events VALUES (?, ?, ?, ?, ?)", 
-               (event_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), label, confidence, image_path))
+    cur.execute("INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)", 
+               (event_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), label, confidence, image_path, weather))
     conn.commit()
     conn.close()
 
 def list_events(limit: int = 15):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("SELECT id, event_time, label, confidence, image_path FROM events ORDER BY event_time DESC LIMIT ?", (limit,))
+    cur.execute("SELECT id, event_time, label, confidence, image_path, weather FROM events ORDER BY event_time DESC LIMIT ?", (limit,))
     rows = cur.fetchall()
     conn.close()
-    return [{"id": r[0], "event_time": r[1], "label": r[2], "confidence": r[3], "image_path": r[4]} for r in rows]
+    out = []
+    for r in rows:
+        weather = None
+        if r[5]:
+            try:
+                weather = json.loads(r[5])
+            except Exception:
+                weather = None
+        out.append({"id": r[0], "event_time": r[1], "label": r[2], "confidence": r[3], "image_path": r[4], "weather": weather})
+    return out
 
 # =========================
 # PROCESSAMENTO DE VÍDEO (YOLO)
@@ -116,7 +135,13 @@ def process_stream():
                 filename = f"cap_{event_id}.jpg"
                 filepath = os.path.join(SAVE_DIR, filename)
                 cv2.imwrite(filepath, frame)
-                save_event(event_id, label, 0.9, f"/static/captures/{filename}")
+                # fetch weather for event (best-effort)
+                try:
+                    weather_data = fetch_weather(DEFAULT_LAT, DEFAULT_LON)
+                    weather_json = json.dumps(weather_data) if weather_data else None
+                except Exception:
+                    weather_json = None
+                save_event(event_id, label, 0.9, f"/static/captures/{filename}", weather=weather_json)
                 last_alert_time[label] = time.time()
         
         with last_frame_lock:
@@ -146,3 +171,15 @@ def generate_frames():
 @app.get("/video_feed")
 def video_feed():
     return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/api/weather")
+def api_weather(lat: float, lon: float):
+    """Retorna dados meteorológicos públicos (Open-Meteo) para as coordenadas fornecidas.
+
+    Exemplo: `/api/weather?lat=-23.55&lon=-46.63`
+    """
+    data = fetch_weather(lat, lon)
+    if data is None:
+        return JSONResponse(status_code=503, content={"error": "source_unavailable"})
+    return JSONResponse(content=data)

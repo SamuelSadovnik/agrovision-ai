@@ -1,0 +1,3 @@
+# Ignore captured images and other generated JPEGs
+static/captures/
+*.jpg
